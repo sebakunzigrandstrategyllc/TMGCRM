@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-white text-black antialiased;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  ::selection {
+    @apply bg-black text-white;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 border border-black px-3 py-1.5 text-sm font-medium tracking-wide transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-black text-white hover:bg-white hover:text-black;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-black hover:bg-black hover:text-white;
+  }
+  .btn-disabled {
+    @apply btn cursor-not-allowed border-gray-300 bg-white text-gray-400 hover:bg-white hover:text-gray-400;
+  }
+  .input {
+    @apply w-full border border-black bg-white px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-black;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-black;
+  }
+  .card {
+    @apply border border-black bg-white;
+  }
+  .info-icon {
+    @apply inline-flex h-4 w-4 items-center justify-center rounded-full border border-black text-[10px] font-bold leading-none hover:bg-black hover:text-white;
+  }
+}

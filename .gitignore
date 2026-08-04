@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+server/data/
+server/storage/
+server/tmp_uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.DS_Store
