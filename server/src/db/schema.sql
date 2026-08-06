@@ -118,6 +118,19 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at TEXT NOT NULL
 );
 
+-- AI-generated project timelines. Append-only: 'see' is the journey map derived from
+-- diffing the See column's AI draft vs. the human edit; 'make' is the execution timeline
+-- generated once the Proposal is approved, grounded in the Proposal + Understand PRD.
+CREATE TABLE IF NOT EXISTS timelines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  stage TEXT NOT NULL, -- 'see' | 'make'
+  summary TEXT,
+  segments TEXT NOT NULL, -- JSON array
+  generated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_timelines_project ON timelines(project_id, stage);
 CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
 CREATE INDEX IF NOT EXISTS idx_stage_versions_project ON stage_entry_versions(project_id, column_key);
 CREATE INDEX IF NOT EXISTS idx_activity_project ON activity_log(project_id);

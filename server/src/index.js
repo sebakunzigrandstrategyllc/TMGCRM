@@ -12,6 +12,7 @@ import paymentsRouter from "./routes/payments.js";
 import calendarRouter from "./routes/calendar.js";
 import amendmentsRouter from "./routes/amendments.js";
 import analyticsRouter from "./routes/analytics.js";
+import timelineRouter from "./routes/timeline.js";
 import { COLUMNS } from "./constants.js";
 
 const app = express();
@@ -29,6 +30,7 @@ app.use("/api/projects/:id/milestones", milestonesRouter);
 app.use("/api/projects/:id/payments", paymentsRouter);
 app.use("/api/projects/:id/calendar", calendarRouter);
 app.use("/api/projects/:id/amendments", amendmentsRouter);
+app.use("/api/projects/:id/timeline", timelineRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api", filesRouter);
 

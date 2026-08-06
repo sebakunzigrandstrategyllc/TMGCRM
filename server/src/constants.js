@@ -2,7 +2,12 @@
 export const COLUMNS = [
   { key: "contact_details", label: "Contact Details", requiresApproval: false },
   { key: "see", label: "Intake / See", requiresApproval: true },
-  { key: "understand", label: "Understand", requiresApproval: true },
+  {
+    key: "understand",
+    label: "Understand",
+    requiresApproval: true,
+    aiGenerated: true, // PRD-style breakdown generated from See's reviewed content — no human-edit field
+  },
   { key: "proposal", label: "Proposal", requiresApproval: true, unlocksProposalGates: true },
   { key: "make", label: "Make", tagline: "This is the plan", requiresApproval: true },
   { key: "manage", label: "Manage", tagline: "This is the plan", requiresApproval: true },

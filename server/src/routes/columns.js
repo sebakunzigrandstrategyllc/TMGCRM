@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, logActivity } from "../db/db.js";
 import { COLUMN_KEYS } from "../constants.js";
 import { isColumnUnlocked, ensureProjectScaffold } from "../utils/stageEntries.js";
-import { generateIntakeSummary } from "../utils/ai.js";
+import { generateIntakeSummary, generateUnderstandBreakdown } from "../utils/ai.js";
 import { wordDiff } from "../utils/diff.js";
 
 const router = Router({ mergeParams: true });
@@ -32,6 +32,12 @@ router.put("/:columnKey", (req, res) => {
 
   const { columnKey } = req.params;
   const { humanEdit } = req.body;
+
+  if (columnKey === "understand") {
+    return res.status(400).json({
+      error: "Understand is AI-generated from the reviewed See content — regenerate it instead of editing directly.",
+    });
+  }
 
   ensureProjectScaffold(project.id);
 
@@ -71,13 +77,23 @@ router.post("/:columnKey/generate", (req, res) => {
   }
 
   let draft;
-  if (columnKey === "see" || columnKey === "understand") {
-    const generated = generateIntakeSummary({
+  if (columnKey === "see") {
+    draft = generateIntakeSummary({
       clientName: project.client_name,
       contactInfo: project.contact_info,
       notes: project.notes,
+    }).seeDraft;
+  } else if (columnKey === "understand") {
+    // Understand is generated from See's reviewed content (human edit if present, else the
+    // AI draft) — never from a human-edit field of its own.
+    const see = db
+      .prepare(`SELECT * FROM stage_entries WHERE project_id = ? AND column_key = 'see'`)
+      .get(project.id);
+    draft = generateUnderstandBreakdown({
+      clientName: project.client_name,
+      seeContent: see?.human_edit || see?.ai_draft || "",
+      notes: project.notes,
     });
-    draft = columnKey === "see" ? generated.seeDraft : generated.understandDraft;
   } else {
     draft = `[AI DRAFT — ${columnKey}]\nAuto-generated first-pass content for "${columnKey}". Replace with reviewed content.`;
   }

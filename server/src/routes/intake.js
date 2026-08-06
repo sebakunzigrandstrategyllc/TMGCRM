@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { db, logActivity } from "../db/db.js";
 import { generateProjectId } from "../utils/projectId.js";
-import { generateIntakeSummary } from "../utils/ai.js";
+import { generateIntakeSummary, generateUnderstandBreakdown } from "../utils/ai.js";
 import { ensureProjectScaffold } from "../utils/stageEntries.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
@@ -70,13 +70,16 @@ router.post(
       uploadedFiles.push(info.lastInsertRowid);
     }
 
-    // Stub AI-generated first-draft See / Understand summary.
-    const { seeDraft, understandDraft } = generateIntakeSummary({
+    // Stub AI-generated first-draft See summary, then a first-pass Understand breakdown
+    // seeded from it (Understand has no human-edit field — it's regenerated from See's
+    // reviewed content once See is approved).
+    const { seeDraft } = generateIntakeSummary({
       clientName,
       contactInfo,
       readAiTranscriptLink,
       notes,
     });
+    const understandDraft = generateUnderstandBreakdown({ clientName, seeContent: seeDraft, notes });
 
     const contactDetails = [`Client: ${clientName.trim()}`, contactInfo ? `Contact: ${contactInfo}` : null]
       .filter(Boolean)

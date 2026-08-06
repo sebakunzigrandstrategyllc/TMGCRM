@@ -26,7 +26,7 @@ export default function ProjectDashboard() {
   if (error) return <p className="text-sm text-black">⚠ {error}</p>;
   if (!data) return <p className="text-sm text-gray-500">Loading...</p>;
 
-  const { project, columns, proposalApproved } = data;
+  const { project, columns, proposalApproved, timelines } = data;
 
   return (
     <div>
@@ -41,7 +41,13 @@ export default function ProjectDashboard() {
 
       <div className="mb-6 flex gap-3 overflow-x-auto pb-3">
         {columns.map((col) => (
-          <StageColumn key={col.key} projectId={id} column={col} onChange={load} />
+          <StageColumn
+            key={col.key}
+            projectId={id}
+            column={col}
+            timeline={col.key === "see" ? timelines?.see : col.key === "make" ? timelines?.make : null}
+            onChange={load}
+          />
         ))}
       </div>
 

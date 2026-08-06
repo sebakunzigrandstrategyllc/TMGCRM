@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db/db.js";
 import { COLUMNS } from "../constants.js";
 import { ensureProjectScaffold, isColumnUnlocked, isProposalApproved } from "../utils/stageEntries.js";
+import { getLatestTimeline } from "../utils/timelineEngine.js";
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.get("/:id/dashboard", (req, res) => {
       label: col.label,
       tagline: col.tagline || null,
       requiresApproval: col.requiresApproval,
+      aiGenerated: !!col.aiGenerated,
       unlocked: isColumnUnlocked(id, col.key),
       aiDraft: stage.ai_draft || "",
       humanEdit: stage.human_edit || "",
@@ -65,6 +67,10 @@ router.get("/:id/dashboard", (req, res) => {
     columns,
     proposalApproved: isProposalApproved(id),
     unattachedFiles: fileRows.filter((f) => !f.column_key).map(serializeFile),
+    timelines: {
+      see: getLatestTimeline(id, "see"),
+      make: getLatestTimeline(id, "make"),
+    },
   });
 });
 

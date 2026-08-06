@@ -80,6 +80,9 @@ export const api = {
   approveAmendment: (id, amendmentId, data) =>
     request(`/projects/${id}/amendments/${amendmentId}/approve`, { method: "PUT", body: JSON.stringify(data) }),
 
+  getTimeline: (id, stage) => request(`/projects/${id}/timeline/${stage}`),
+  generateTimeline: (id, stage) => request(`/projects/${id}/timeline/${stage}`, { method: "POST" }),
+
   getTurnaround: () => request("/analytics/turnaround"),
   getContentPatterns: () => request("/analytics/content-patterns"),
   getOverview: () => request("/analytics/overview"),
