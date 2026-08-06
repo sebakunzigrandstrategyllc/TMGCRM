@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
-export default function MilestonesPanel({ projectId }) {
+export default function MilestonesPanel({ projectId, onChange }) {
   const [milestones, setMilestones] = useState([]);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -19,11 +19,13 @@ export default function MilestonesPanel({ projectId }) {
     setTitle("");
     setDueDate("");
     load();
+    onChange?.();
   };
 
   const toggleStatus = async (m) => {
     await api.updateMilestone(projectId, m.id, { status: m.status === "done" ? "pending" : "done" });
     load();
+    onChange?.();
   };
 
   return (

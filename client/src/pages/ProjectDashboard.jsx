@@ -6,11 +6,13 @@ import MilestonesPanel from "../components/MilestonesPanel.jsx";
 import PaymentSchedule from "../components/PaymentSchedule.jsx";
 import CalendarPanel from "../components/CalendarPanel.jsx";
 import AmendmentPanel from "../components/AmendmentPanel.jsx";
+import TimelineComparison from "../components/TimelineComparison.jsx";
 
 export default function ProjectDashboard() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [milestonesTick, setMilestonesTick] = useState(0);
 
   const load = useCallback(() => {
     api
@@ -54,7 +56,8 @@ export default function ProjectDashboard() {
       <div className="space-y-4">
         {proposalApproved ? (
           <>
-            <MilestonesPanel projectId={id} />
+            <MilestonesPanel projectId={id} onChange={() => setMilestonesTick((t) => t + 1)} />
+            <TimelineComparison projectId={id} timeline={timelines?.make} refreshKey={milestonesTick} />
             <PaymentSchedule projectId={id} />
             <CalendarPanel projectId={id} />
           </>
