@@ -40,15 +40,14 @@ router.post("/see", (req, res) => {
   res.status(201).json(generateAndStoreSeeTimeline(project));
 });
 
-// Manual (re)generation of the Make-stage execution timeline. Requires Proposal approval,
-// and is also triggered automatically the moment Proposal is approved.
+// Manual (re)generation of the Make-stage execution timeline. Available anytime as a
+// tentative preview grounded in whatever Proposal/Understand content currently exists; wording
+// marks it finalized once Proposal is actually approved. Also triggered automatically by the
+// plan cascade on every save.
 router.post("/make", (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
-  if (!isProposalApproved(project.id)) {
-    return res.status(423).json({ error: "The execution timeline unlocks once the Proposal column is approved." });
-  }
-  res.status(201).json(generateAndStoreMakeTimeline(project));
+  res.status(201).json(generateAndStoreMakeTimeline(project, { finalized: isProposalApproved(project.id) }));
 });
 
 export default router;

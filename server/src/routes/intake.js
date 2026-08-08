@@ -4,8 +4,9 @@ import fs from "fs";
 import path from "path";
 import { db, logActivity } from "../db/db.js";
 import { generateProjectId } from "../utils/projectId.js";
-import { generateIntakeSummary, generateUnderstandBreakdown } from "../utils/ai.js";
+import { generateIntakeSummary } from "../utils/ai.js";
 import { ensureProjectScaffold } from "../utils/stageEntries.js";
+import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
 
@@ -70,36 +71,29 @@ router.post(
       uploadedFiles.push(info.lastInsertRowid);
     }
 
-    // Stub AI-generated first-draft See summary, then a first-pass Understand breakdown
-    // seeded from it (Understand has no human-edit field — it's regenerated from See's
-    // reviewed content once See is approved).
+    // Seed See's first draft from intake materials, then cascade: this fills in a tentative
+    // AI draft for every column from Understand through Final Notes, plus the See journey
+    // timeline, a tentative Make execution timeline, and tentative (AI-suggested) milestones —
+    // the full See -> Sustain outline exists from the moment the project is created.
     const { seeDraft } = generateIntakeSummary({
       clientName,
       contactInfo,
       readAiTranscriptLink,
       notes,
     });
-    const understandDraft = generateUnderstandBreakdown({ clientName, seeContent: seeDraft, notes });
 
     const contactDetails = [`Client: ${clientName.trim()}`, contactInfo ? `Contact: ${contactInfo}` : null]
       .filter(Boolean)
       .join("\n");
 
-    const setAiDraft = db.prepare(
+    db.prepare(
       `UPDATE stage_entries SET ai_draft = ?, human_edit = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`
-    );
-    setAiDraft.run(contactDetails, contactDetails, now, projectId, "contact_details");
+    ).run(contactDetails, contactDetails, now, projectId, "contact_details");
     db.prepare(`UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`).run(
       seeDraft,
       now,
       projectId,
       "see"
-    );
-    db.prepare(`UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`).run(
-      understandDraft,
-      now,
-      projectId,
-      "understand"
     );
 
     const insertVersion = db.prepare(
@@ -108,13 +102,13 @@ router.post(
     );
     insertVersion.run(projectId, "contact_details", contactDetails, now);
     insertVersion.run(projectId, "see", seeDraft, now);
-    insertVersion.run(projectId, "understand", understandDraft, now);
 
     logActivity(projectId, "project_created", null, { clientName });
     logActivity(projectId, "ai_draft_generated", "see", { source: "intake" });
-    logActivity(projectId, "ai_draft_generated", "understand", { source: "intake" });
 
     const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId);
+    regenerateProjectPlan(project);
+
     res.status(201).json({ project, uploadedFileIds: uploadedFiles });
   }
 );

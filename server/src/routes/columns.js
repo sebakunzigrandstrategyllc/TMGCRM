@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db, logActivity } from "../db/db.js";
 import { COLUMN_KEYS } from "../constants.js";
 import { isColumnUnlocked, ensureProjectScaffold } from "../utils/stageEntries.js";
-import { generateIntakeSummary, generateUnderstandBreakdown } from "../utils/ai.js";
+import { generateIntakeSummary } from "../utils/ai.js";
+import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { wordDiff } from "../utils/diff.js";
 
 const router = Router({ mergeParams: true });
@@ -24,7 +25,9 @@ function requireColumn(req, res) {
   return true;
 }
 
-// Save a human edit to a column. Blocked until the previous column is approved.
+// Save a human edit to a column. Blocked until the previous column is approved. Saving
+// re-runs the plan cascade, so every stage from here through Sustain re-derives its tentative
+// AI draft from this edit — "what changed here updates the plan following."
 router.put("/:columnKey", (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
@@ -57,13 +60,17 @@ router.put("/:columnKey", (req, res) => {
 
   logActivity(project.id, "human_edit_saved", columnKey, { length: (humanEdit || "").length });
 
+  regenerateProjectPlan(project);
+
   const updated = db
     .prepare(`SELECT * FROM stage_entries WHERE project_id = ? AND column_key = ?`)
     .get(project.id, columnKey);
   res.json(updated);
 });
 
-// Regenerate the stub AI draft for a column (used for later-stage columns beyond intake).
+// Manually regenerate a column's AI draft. See is the only column with no upstream AI
+// dependency (it's rebuilt from the original intake fields); every other column's tentative
+// draft is derived from what's upstream of it, so regenerating is just re-running the cascade.
 router.post("/:columnKey/generate", (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
@@ -76,39 +83,25 @@ router.post("/:columnKey/generate", (req, res) => {
     return res.status(423).json({ error: "This column is locked until the prior column is approved." });
   }
 
-  let draft;
   if (columnKey === "see") {
-    draft = generateIntakeSummary({
+    const draft = generateIntakeSummary({
       clientName: project.client_name,
       contactInfo: project.contact_info,
       notes: project.notes,
     }).seeDraft;
-  } else if (columnKey === "understand") {
-    // Understand is generated from See's reviewed content (human edit if present, else the
-    // AI draft) — never from a human-edit field of its own.
-    const see = db
-      .prepare(`SELECT * FROM stage_entries WHERE project_id = ? AND column_key = 'see'`)
-      .get(project.id);
-    draft = generateUnderstandBreakdown({
-      clientName: project.client_name,
-      seeContent: see?.human_edit || see?.ai_draft || "",
-      notes: project.notes,
-    });
-  } else {
-    draft = `[AI DRAFT — ${columnKey}]\nAuto-generated first-pass content for "${columnKey}". Replace with reviewed content.`;
+
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = 'see'`
+    ).run(draft, now, project.id);
+    db.prepare(
+      `INSERT INTO stage_entry_versions (project_id, column_key, version_type, content, created_at)
+       VALUES (?, 'see', 'ai_draft', ?, ?)`
+    ).run(project.id, draft, now);
+    logActivity(project.id, "ai_draft_generated", "see", { manual: true });
   }
 
-  const now = new Date().toISOString();
-  db.prepare(
-    `UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`
-  ).run(draft, now, project.id, columnKey);
-
-  db.prepare(
-    `INSERT INTO stage_entry_versions (project_id, column_key, version_type, content, created_at)
-     VALUES (?, ?, 'ai_draft', ?, ?)`
-  ).run(project.id, columnKey, draft, now);
-
-  logActivity(project.id, "ai_draft_generated", columnKey, { manual: true });
+  regenerateProjectPlan(project);
 
   const updated = db
     .prepare(`SELECT * FROM stage_entries WHERE project_id = ? AND column_key = ?`)

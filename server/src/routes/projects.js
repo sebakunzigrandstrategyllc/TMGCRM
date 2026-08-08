@@ -51,6 +51,7 @@ router.get("/:id/dashboard", (req, res) => {
       unlocked: isColumnUnlocked(id, col.key),
       aiDraft: stage.ai_draft || "",
       humanEdit: stage.human_edit || "",
+      updatedAt: stage.updated_at || null,
       approval: {
         approved: !!approval.approved,
         approvedAt: approval.approved_at,

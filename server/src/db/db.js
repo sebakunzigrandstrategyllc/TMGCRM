@@ -15,6 +15,17 @@ db.pragma("foreign_keys = ON");
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
 db.exec(schema);
 
+// Lightweight migration for columns added after initial table creation — CREATE TABLE IF NOT
+// EXISTS won't add them to a DB file that already exists from an earlier schema version.
+function ensureColumn(table, column, definition) {
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!existing.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+ensureColumn("milestones", "source", `TEXT NOT NULL DEFAULT 'human'`);
+ensureColumn("milestones", "source_key", `TEXT`);
+
 export function logActivity(projectId, action, columnKey = null, details = null) {
   db.prepare(
     `INSERT INTO activity_log (project_id, action, column_key, details, created_at)

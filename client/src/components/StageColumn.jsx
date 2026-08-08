@@ -5,17 +5,19 @@ import FileUpload from "./FileUpload.jsx";
 import DiffView from "./DiffView.jsx";
 import Modal from "./Modal.jsx";
 import TimelinePanel from "./TimelinePanel.jsx";
+import HumanEditField from "./HumanEditField.jsx";
+import TentativeMilestonesPreview from "./TentativeMilestonesPreview.jsx";
 import { api } from "../api.js";
 
 const COLUMN_INFO = {
   contact_details: "Client name, contact information, and how they were sourced. Always editable.",
-  see: "First-draft summary generated from intake materials (transcript, email thread, notes). Edit and approve to unlock Understand — approving also maps out this project's individual journey timeline below.",
-  understand: "AI-generated PRD-style breakdown of the project — what we understand and what's needed — built from the reviewed See content. There's no manual edit field here; regenerate it or approve as-is.",
-  proposal: "The scope, deliverables, and terms proposed to the client. Approving this unlocks Milestones, Payment Schedule, the internal Calendar, and a fresh execution timeline for Make.",
-  make: "The execution plan — 'This is the plan' for building/implementing the work. Once Proposal is approved, a new execution timeline is generated here, grounded in the approved scope.",
-  manage: "The plan for ongoing management and oversight once delivered.",
-  sustain: "The plan for long-term sustainability and handoff.",
-  final_notes: "Final notes and follow-up recommendations for the engagement.",
+  see: "First-draft summary generated from intake materials (transcript, email thread, notes). Any edit here cascades forward — Understand, Proposal, Make, Manage, Sustain, and Final Notes all re-derive their tentative drafts from what you save. Approving See also maps out this project's individual journey timeline below.",
+  understand: "AI-generated PRD-style breakdown of the project — what we understand and what's needed — built from the reviewed See content, and kept up to date automatically as See changes. There's no manual edit field here; regenerate it or approve as-is.",
+  proposal: "The scope, deliverables, and terms proposed to the client. Editing this cascades forward into Make, Manage, Sustain, and Final Notes. Approving it unlocks Milestones, Payment Schedule, the internal Calendar, and finalizes the execution timeline for Make.",
+  make: "The execution plan — 'This is the plan' for building/implementing the work. A tentative execution timeline and milestones exist here from early on, and firm up once Proposal is approved. Editing this cascades into Manage, Sustain, and Final Notes.",
+  manage: "The plan for ongoing management and oversight once delivered — drafted from Make, and updated automatically when Make changes.",
+  sustain: "The plan for long-term sustainability and handoff — drafted from Manage, and updated automatically when Manage changes.",
+  final_notes: "Final notes and follow-up recommendations for the engagement — drafted from Sustain, and updated automatically when Sustain changes.",
 };
 
 export default function StageColumn({ projectId, column, timeline, onChange }) {
@@ -25,7 +27,8 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
   const [dirty, setDirty] = useState(false);
 
   // Re-sync from the server whenever this column's content changes underneath us
-  // (e.g. after "Regenerate AI draft") as long as the user hasn't made local unsaved edits.
+  // (e.g. after "Regenerate AI draft", or a cascade triggered by editing an earlier column)
+  // as long as the user hasn't made local unsaved edits.
   useEffect(() => {
     if (!dirty) setDraft(column.humanEdit || column.aiDraft || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -37,6 +40,7 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
 
   const locked = !column.unlocked;
   const showTimeline = column.key === "see" || column.key === "make";
+  const showMilestonesPreview = column.key === "make";
 
   const save = async () => {
     setSaving(true);
@@ -88,9 +92,26 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
       </div>
 
       {locked ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center text-xs text-gray-400">
-          <span>Locked</span>
-          <span>Approve the previous column to unlock.</span>
+        <div className="flex flex-1 flex-col gap-2 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase text-gray-400">Tentative preview</span>
+            <span className="text-[10px] font-semibold uppercase text-gray-400">Locked</span>
+          </div>
+          <div className="h-32 overflow-y-auto whitespace-pre-wrap border border-dashed border-black/25 bg-gray-50 p-2 text-xs text-gray-500">
+            {column.aiDraft || "Nothing generated yet — this fills in as earlier columns are edited."}
+          </div>
+          <p className="text-[10px] text-gray-400">Approve the previous column to review and edit this yourself.</p>
+
+          {showTimeline && (
+            <TimelinePanel
+              title={column.key === "see" ? "Journey timeline" : "Execution timeline"}
+              timeline={timeline}
+              emptyHint="Not generated yet."
+            />
+          )}
+          {showMilestonesPreview && (
+            <TentativeMilestonesPreview projectId={projectId} refreshKey={timeline?.generated_at} />
+          )}
         </div>
       ) : (
         <div className="flex flex-1 flex-col gap-2 p-2">
@@ -108,34 +129,26 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase text-gray-500">Human edit</span>
-                <div className="flex gap-1">
-                  <button type="button" className="text-[10px] underline" onClick={openDiff}>
-                    Draft vs. edit
-                  </button>
-                  <button type="button" className="text-[10px] underline" onClick={regenerate}>
-                    Regenerate AI draft
-                  </button>
-                </div>
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" className="text-[10px] underline" onClick={openDiff}>
+                  Draft vs. edit
+                </button>
+                <button type="button" className="text-[10px] underline" onClick={regenerate}>
+                  Regenerate AI draft
+                </button>
               </div>
-              <textarea
-                className="input h-32 resize-none text-xs"
+              <HumanEditField
                 value={draft}
-                placeholder={column.aiDraft ? "" : "No AI draft yet — write directly or regenerate."}
-                onChange={(e) => {
-                  setDraft(e.target.value);
+                onChange={(v) => {
+                  setDraft(v);
                   setDirty(true);
                 }}
+                onSave={save}
+                saving={saving}
+                dirty={dirty}
+                updatedAt={column.updatedAt}
+                placeholder={column.aiDraft ? "" : "No AI draft yet — write directly or regenerate."}
               />
-              <button
-                type="button"
-                className={dirty ? "btn-primary text-[11px]" : "btn-disabled text-[11px]"}
-                disabled={!dirty || saving}
-                onClick={save}
-              >
-                {saving ? "Saving..." : "Save edit"}
-              </button>
             </>
           )}
 
@@ -157,9 +170,12 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
               emptyHint={
                 column.key === "see"
                   ? "Generated automatically once See is approved, or generate a preview now."
-                  : "Generated automatically once Proposal is approved."
+                  : "Generated automatically as Proposal takes shape."
               }
             />
+          )}
+          {showMilestonesPreview && (
+            <TentativeMilestonesPreview projectId={projectId} refreshKey={timeline?.generated_at} />
           )}
         </div>
       )}

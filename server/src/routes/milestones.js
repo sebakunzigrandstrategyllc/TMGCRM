@@ -17,15 +17,17 @@ function requireProposalApproved(req, res) {
   return project;
 }
 
+// The list is always visible — including tentative AI-suggested milestones seeded by the plan
+// cascade from See onward — so the incremental goal-setting flow is visible left to right.
+// `unlocked` gates interactive management (add/edit/delete), which stays locked until Proposal
+// is approved, per the original spec.
 router.get("/", (req, res) => {
   const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
-  const unlocked = isProposalApproved(project.id);
-  if (!unlocked) return res.json({ unlocked: false, milestones: [] });
   const milestones = db
     .prepare(`SELECT * FROM milestones WHERE project_id = ? ORDER BY due_date ASC, id ASC`)
     .all(project.id);
-  res.json({ unlocked: true, milestones });
+  res.json({ unlocked: isProposalApproved(project.id), milestones });
 });
 
 router.post("/", (req, res) => {
@@ -36,8 +38,8 @@ router.post("/", (req, res) => {
   const now = new Date().toISOString();
   const info = db
     .prepare(
-      `INSERT INTO milestones (project_id, title, due_date, status, notes, created_at)
-       VALUES (?, ?, ?, 'pending', ?, ?)`
+      `INSERT INTO milestones (project_id, title, due_date, status, notes, source, created_at)
+       VALUES (?, ?, ?, 'pending', ?, 'human', ?)`
     )
     .run(project.id, title, dueDate || null, notes || null, now);
   logActivity(project.id, "milestone_created", "make", { title });
@@ -53,8 +55,10 @@ router.put("/:milestoneId", (req, res) => {
     .get(req.params.milestoneId, project.id);
   if (!existing) return res.status(404).json({ error: "Milestone not found" });
 
+  // Any human interaction claims the milestone — it stops being treated as an AI suggestion
+  // the cascade can silently replace.
   db.prepare(
-    `UPDATE milestones SET title = ?, due_date = ?, status = ?, notes = ? WHERE id = ?`
+    `UPDATE milestones SET title = ?, due_date = ?, status = ?, notes = ?, source = 'human' WHERE id = ?`
   ).run(
     title ?? existing.title,
     dueDate ?? existing.due_date,

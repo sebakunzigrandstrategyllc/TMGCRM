@@ -1,21 +1,19 @@
 // Renders an AI-generated project timeline: a proportional stage bar plus a segment
 // breakdown with estimated durations and date ranges. Used for the See-stage journey
 // analysis and the post-Proposal Make execution timeline.
-export default function TimelinePanel({ title, timeline, onGenerate, generateLabel, loading, emptyHint, locked }) {
+export default function TimelinePanel({ title, timeline, onGenerate, generateLabel, loading, emptyHint }) {
   return (
     <div className="border border-black/10 bg-gray-50 p-2 text-xs">
       <div className="mb-1 flex items-center justify-between">
         <span className="font-semibold uppercase tracking-wide text-gray-500">{title}</span>
-        {onGenerate && !locked && (
+        {onGenerate && (
           <button type="button" className="underline disabled:text-gray-400" onClick={onGenerate} disabled={loading}>
             {loading ? "Generating..." : generateLabel || (timeline ? "Regenerate" : "Generate")}
           </button>
         )}
       </div>
 
-      {locked ? (
-        <p className="text-gray-400">{emptyHint}</p>
-      ) : !timeline ? (
+      {!timeline ? (
         <p className="text-gray-400">{emptyHint || "Not generated yet."}</p>
       ) : (
         <>

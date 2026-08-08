@@ -1,15 +1,6 @@
 import { db, logActivity } from "../db/db.js";
 import { generateJourneyTimeline, generateMakeExecutionTimeline } from "./ai.js";
 
-function storeTimeline(projectId, stage, summary, segments) {
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO timelines (project_id, stage, summary, segments, generated_at) VALUES (?, ?, ?, ?, ?)`
-  ).run(projectId, stage, summary, JSON.stringify(segments), now);
-  logActivity(projectId, "timeline_generated", stage, { segmentCount: segments.length });
-  return getLatestTimeline(projectId, stage);
-}
-
 function deserialize(row) {
   if (!row) return null;
   return { ...row, segments: JSON.parse(row.segments) };
@@ -29,6 +20,23 @@ export function getTimelineHistory(projectId, stage) {
     .map(deserialize);
 }
 
+// Skips the write (and the version-history/activity-log noise that would come with it) when
+// the newly computed timeline is identical to the last one — the cascade re-runs this on
+// every save, so most calls should be no-ops.
+function storeTimelineIfChanged(projectId, stage, summary, segments) {
+  const current = getLatestTimeline(projectId, stage);
+  const segmentsJson = JSON.stringify(segments);
+  if (current && current.summary === summary && JSON.stringify(current.segments) === segmentsJson) {
+    return current;
+  }
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO timelines (project_id, stage, summary, segments, generated_at) VALUES (?, ?, ?, ?, ?)`
+  ).run(projectId, stage, summary, segmentsJson, now);
+  logActivity(projectId, "timeline_generated", stage, { segmentCount: segments.length });
+  return getLatestTimeline(projectId, stage);
+}
+
 // Diffs the See column's AI draft vs. human edit and maps out this project's individual
 // journey timeline through all five stages.
 export function generateAndStoreSeeTimeline(project) {
@@ -41,12 +49,13 @@ export function generateAndStoreSeeTimeline(project) {
     seeHumanEdit: see?.human_edit || "",
     startDate: project.created_at,
   });
-  return storeTimeline(project.id, "see", summary, segments);
+  return storeTimelineIfChanged(project.id, "see", summary, segments);
 }
 
-// Generated once the Proposal is approved, grounded in the approved proposal scope and the
-// Understand PRD rather than the earlier intake-stage estimate.
-export function generateAndStoreMakeTimeline(project) {
+// Regenerated continuously from whatever Proposal/Understand content currently exists, so a
+// tentative execution timeline exists from early on; wording marks it "finalized" once
+// Proposal is actually approved.
+export function generateAndStoreMakeTimeline(project, { finalized = false } = {}) {
   const proposal = db
     .prepare(`SELECT * FROM stage_entries WHERE project_id = ? AND column_key = 'proposal'`)
     .get(project.id);
@@ -58,7 +67,11 @@ export function generateAndStoreMakeTimeline(project) {
     clientName: project.client_name,
     proposalContent: proposal?.human_edit || proposal?.ai_draft || "",
     understandContent: understand?.human_edit || understand?.ai_draft || "",
-    startDate: new Date().toISOString(),
+    // Anchored to project creation (like the See timeline) rather than "now" so the same
+    // inputs always produce the same output — the cascade calls this on every save, and an
+    // ever-shifting start date would defeat the diff-guard and spam the timeline history.
+    startDate: project.created_at,
+    finalized,
   });
-  return storeTimeline(project.id, "make", summary, segments);
+  return storeTimelineIfChanged(project.id, "make", summary, segments);
 }

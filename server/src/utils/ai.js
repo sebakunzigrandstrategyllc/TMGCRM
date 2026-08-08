@@ -52,6 +52,90 @@ export function generateUnderstandBreakdown({ clientName, seeContent, notes }) {
     .join("\n");
 }
 
+// Tentative stage drafts for Proposal -> Make -> Manage -> Sustain -> Final Notes, each
+// framed from the stage immediately before it. Called on a chain (each stage's output feeds
+// the next) so the whole See -> Sustain outline updates left to right whenever an upstream
+// human edit changes what feeds into it. These only ever write to ai_draft — a stage's own
+// human edit (once made) is never touched by this.
+const STAGE_DRAFT_META = {
+  proposal: {
+    heading: "Proposal",
+    upstreamLabel: "Understand breakdown",
+    body: (upstreamContent) => [
+      `Tentative scope and terms, drafted from the Understand breakdown below. Refine before sending to the client.`,
+      ``,
+      `SCOPE (from Understand)`,
+      upstreamContent || "Pending — approve/edit See so Understand can generate.",
+      ``,
+      `DELIVERABLES`,
+      `- To be itemized from Understand's "What's needed" section.`,
+      ``,
+      `TERMS`,
+      `- Fee structure and timeline to be finalized with the client.`,
+    ],
+  },
+  make: {
+    heading: "Make",
+    upstreamLabel: "Proposal",
+    body: (upstreamContent) => [
+      `Tentative execution plan — "this is the plan" — drafted from the current Proposal below.`,
+      ``,
+      `PLAN (from Proposal)`,
+      upstreamContent || "Pending — draft or approve Proposal first.",
+      ``,
+      `KEY ACTIVITIES`,
+      `- Kickoff, core build, and review passes scoped from the Proposal.`,
+    ],
+  },
+  manage: {
+    heading: "Manage",
+    upstreamLabel: "Make plan",
+    body: (upstreamContent) => [
+      `Tentative plan for ongoing management and oversight once delivered — "this is the plan" — drafted from the current Make plan below.`,
+      ``,
+      `PLAN (from Make)`,
+      upstreamContent || "Pending — draft or approve Make first.",
+      ``,
+      `OVERSIGHT`,
+      `- Check-in cadence and reporting to define as Make progresses.`,
+    ],
+  },
+  sustain: {
+    heading: "Sustain",
+    upstreamLabel: "Manage plan",
+    body: (upstreamContent) => [
+      `Tentative plan for long-term sustainability and handoff — "this is the plan" — drafted from the current Manage plan below.`,
+      ``,
+      `PLAN (from Manage)`,
+      upstreamContent || "Pending — draft or approve Manage first.",
+      ``,
+      `HANDOFF`,
+      `- Knowledge transfer and long-term ownership to define as Manage progresses.`,
+    ],
+  },
+  final_notes: {
+    heading: "Final Notes & Follow-Up Recommendations",
+    upstreamLabel: "Sustain plan",
+    body: (upstreamContent) => [
+      `Tentative closing notes and follow-up recommendations, drafted from the current Sustain plan below.`,
+      ``,
+      `SUMMARY (from Sustain)`,
+      upstreamContent || "Pending — draft or approve Sustain first.",
+      ``,
+      `FOLLOW-UP RECOMMENDATIONS`,
+      `- To be finalized as the engagement nears completion.`,
+    ],
+  },
+};
+
+export function generateStageDraft(stageKey, { clientName, upstreamContent }) {
+  const meta = STAGE_DRAFT_META[stageKey];
+  if (!meta) throw new Error(`No stage draft generator for "${stageKey}"`);
+  return [`[AI DRAFT — ${meta.heading}] (tentative, for ${clientName || "this project"})`, ...meta.body(upstreamContent)]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function generateChangeReport({ title, description, oldValue, newValue }) {
   return [
     `[AI DRAFT — Scope Change Report]`,
@@ -140,18 +224,23 @@ const MAKE_PHASES = [
   { key: "sustain_handoff", label: "Sustain Handoff", baseDays: 3 },
 ];
 
-// Generated once the Proposal is approved. Supersedes the rough See-stage journey estimate
-// for Make onward, grounded in the actual approved scope and the Understand breakdown.
-export function generateMakeExecutionTimeline({ clientName, proposalContent, understandContent, startDate }) {
+// Regenerated continuously as the Proposal/Understand content changes, so there's always a
+// current best-guess execution plan. Once Proposal is actually approved, the wording marks it
+// final rather than tentative — same generator, sharper framing.
+export function generateMakeExecutionTimeline({ clientName, proposalContent, understandContent, startDate, finalized }) {
   const scopeSignal = (proposalContent || "").trim().length + (understandContent || "").trim().length;
   const scopeMultiplier = scopeSignal === 0 ? 1 : Math.min(2, 0.8 + scopeSignal / 2000);
 
   const { segments, totalDays } = layoutSegments(MAKE_PHASES, startDate, scopeMultiplier);
 
   const summary = [
-    `Execution timeline for ${clientName || "this project"}, generated now that the Proposal is approved.`,
-    `Grounded in the approved proposal scope and the Understand breakdown rather than the earlier`,
-    `intake-stage estimate — this supersedes the See-stage journey timeline for Make onward.`,
+    finalized
+      ? `Execution timeline for ${clientName || "this project"}, finalized now that the Proposal is approved.`
+      : `Tentative execution timeline for ${clientName || "this project"}, drafted from the current Proposal and`,
+    finalized
+      ? `Grounded in the approved proposal scope and the Understand breakdown — this supersedes the See-stage`
+      : `Understand content so far. Grounded in whatever scope exists right now — this will keep updating as`,
+    finalized ? `journey timeline for Make onward.` : `Proposal is edited, and firms up once Proposal is approved.`,
     `Estimated total: ~${totalDays} days across kickoff, build, review, and the transition into Manage and Sustain.`,
   ].join(" ");
 

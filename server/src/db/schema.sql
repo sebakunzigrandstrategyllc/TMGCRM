@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS milestones (
   due_date TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   notes TEXT,
+  source TEXT NOT NULL DEFAULT 'human', -- 'human' | 'ai_suggested' — AI ones are refreshed on each plan regeneration; human ones are never touched
+  source_key TEXT, -- stable execution-timeline phase key (e.g. 'kickoff') for ai_suggested rows, so editing one "claims" that phase instead of leaving a duplicate behind
   created_at TEXT NOT NULL
 );
 
