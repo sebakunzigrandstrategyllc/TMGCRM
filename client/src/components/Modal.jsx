@@ -1,10 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+// Tracks which modals are currently open, in open order, so Escape closes only the topmost
+// one — without this, two nested modals (e.g. a checklist item's info detail opened on top of
+// the checklist itself) would both close on a single Escape press, since each Modal instance
+// otherwise registers its own independent window keydown listener.
+let openStack = [];
+let nextId = 0;
+
 export default function Modal({ open, onClose, title, children, wide = false }) {
+  const idRef = useRef(null);
+  if (idRef.current === null) idRef.current = ++nextId;
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const id = idRef.current;
+    openStack.push(id);
+    return () => {
+      openStack = openStack.filter((x) => x !== id);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape" && openStack[openStack.length - 1] === idRef.current) {
+        onClose();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);

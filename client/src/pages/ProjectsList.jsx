@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
+import DeleteProjectModal from "../components/DeleteProjectModal.jsx";
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
     api.getProjects().then((p) => {
@@ -37,6 +39,7 @@ export default function ProjectsList() {
               <th className="px-3 py-2 font-semibold">Contact</th>
               <th className="px-3 py-2 font-semibold">Stage</th>
               <th className="px-3 py-2 font-semibold">Created</th>
+              <th className="px-3 py-2 font-semibold" />
             </tr>
           </thead>
           <tbody>
@@ -51,11 +54,27 @@ export default function ProjectsList() {
                 <td className="px-3 py-2 text-gray-600">{p.contact_info || "—"}</td>
                 <td className="px-3 py-2 uppercase text-xs tracking-wide">{p.current_stage}</td>
                 <td className="px-3 py-2 text-gray-500">{new Date(p.created_at).toLocaleDateString()}</td>
+                <td className="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    className="text-xs text-gray-400 underline hover:text-black"
+                    onClick={() => setDeleteTarget(p)}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <DeleteProjectModal
+        open={!!deleteTarget}
+        project={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(id) => setProjects((prev) => prev.filter((p) => p.id !== id))}
+      />
     </div>
   );
 }

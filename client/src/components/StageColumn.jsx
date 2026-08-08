@@ -7,6 +7,7 @@ import Modal from "./Modal.jsx";
 import TimelinePanel from "./TimelinePanel.jsx";
 import HumanEditField from "./HumanEditField.jsx";
 import TentativeMilestonesPreview from "./TentativeMilestonesPreview.jsx";
+import ChecklistModal from "./ChecklistModal.jsx";
 import { api } from "../api.js";
 
 const COLUMN_INFO = {
@@ -37,6 +38,7 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
   const [showDiff, setShowDiff] = useState(false);
   const [history, setHistory] = useState(null);
   const [generatingTimeline, setGeneratingTimeline] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   const locked = !column.unlocked;
   const showTimeline = column.key === "see" || column.key === "make";
@@ -181,7 +183,23 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
       )}
 
       {column.requiresApproval && !locked && (
-        <ApprovalGate approval={column.approval} onSubmit={setApproval} />
+        <ApprovalGate
+          approval={column.approval}
+          onSubmit={setApproval}
+          checklist={column.checklist}
+          onOpenChecklist={() => setShowChecklist(true)}
+        />
+      )}
+
+      {column.requiresApproval && (
+        <ChecklistModal
+          open={showChecklist}
+          onClose={() => setShowChecklist(false)}
+          projectId={projectId}
+          columnKey={column.key}
+          columnLabel={column.label}
+          onProgressChange={() => onChange?.()}
+        />
       )}
 
       {!isAiOnly && (

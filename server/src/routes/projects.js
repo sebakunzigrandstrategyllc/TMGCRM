@@ -3,6 +3,8 @@ import { db } from "../db/db.js";
 import { COLUMNS } from "../constants.js";
 import { ensureProjectScaffold, isColumnUnlocked, isProposalApproved } from "../utils/stageEntries.js";
 import { getLatestTimeline } from "../utils/timelineEngine.js";
+import { getChecklistProgress } from "../utils/checklistEngine.js";
+import { deleteProjectCompletely } from "../utils/deleteProject.js";
 
 const router = Router();
 
@@ -17,6 +19,21 @@ router.get("/:id", (req, res) => {
   const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
   res.json(project);
+});
+
+// Permanently deletes a project and everything tied to it. Requires the caller to echo the
+// project's own id as a confirmation — a server-side backstop behind the UI's confirmation
+// step, since this has no undo.
+router.delete("/:id", (req, res) => {
+  const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(req.params.id);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  if (req.query.confirm !== project.id) {
+    return res.status(400).json({ error: "Deletion requires ?confirm=<project id> to match." });
+  }
+
+  deleteProjectCompletely(project.id);
+  res.status(204).end();
 });
 
 router.get("/:id/dashboard", (req, res) => {
@@ -52,6 +69,7 @@ router.get("/:id/dashboard", (req, res) => {
       aiDraft: stage.ai_draft || "",
       humanEdit: stage.human_edit || "",
       updatedAt: stage.updated_at || null,
+      checklist: col.requiresApproval ? getChecklistProgress(id, col.key) : null,
       approval: {
         approved: !!approval.approved,
         approvedAt: approval.approved_at,

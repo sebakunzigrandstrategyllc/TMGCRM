@@ -2,6 +2,8 @@ import { db, logActivity } from "../db/db.js";
 import { generateUnderstandBreakdown, generateStageDraft } from "./ai.js";
 import { ensureProjectScaffold, isProposalApproved } from "./stageEntries.js";
 import { generateAndStoreSeeTimeline, generateAndStoreMakeTimeline, getLatestTimeline } from "./timelineEngine.js";
+import { ensureChecklist } from "./checklistEngine.js";
+import { COLUMN_KEYS } from "../constants.js";
 
 function getStage(projectId, columnKey) {
   return db
@@ -117,4 +119,11 @@ export function regenerateProjectPlan(project) {
 
   const makeTimeline = generateAndStoreMakeTimeline(project, { finalized: isProposalApproved(project.id) });
   regenerateTentativeMilestones(project, makeTimeline || getLatestTimeline(project.id, "make"));
+
+  // Lazily seed each approval-gated column's checklist — never regenerated automatically, so
+  // editing upstream content never wipes a human's checked-off progress.
+  for (const columnKey of COLUMN_KEYS) {
+    if (columnKey === "contact_details") continue;
+    ensureChecklist(project, columnKey);
+  }
 }

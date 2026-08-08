@@ -3,6 +3,7 @@ import { db, logActivity } from "../db/db.js";
 import { COLUMN_KEYS } from "../constants.js";
 import { ensureProjectScaffold, isColumnUnlocked } from "../utils/stageEntries.js";
 import { regenerateProjectPlan } from "../utils/planEngine.js";
+import { isChecklistComplete, getChecklistProgress } from "../utils/checklistEngine.js";
 
 const router = Router({ mergeParams: true });
 
@@ -22,6 +23,14 @@ router.put("/:columnKey", (req, res) => {
   }
 
   const { approved, notes } = req.body;
+
+  if (approved && !isChecklistComplete(project.id, columnKey)) {
+    const { total, checked } = getChecklistProgress(project.id, columnKey);
+    return res.status(400).json({
+      error: `Complete the checklist before approving (${checked}/${total} done).`,
+    });
+  }
+
   const now = new Date().toISOString();
 
   db.prepare(

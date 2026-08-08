@@ -132,6 +132,22 @@ CREATE TABLE IF NOT EXISTS timelines (
   generated_at TEXT NOT NULL
 );
 
+-- Per-column checklist of objectives that must all be checked before that column can be
+-- approved. Generated once per column (lazily, so editing the column's content never wipes
+-- checked progress) with an optional manual regenerate that resets it.
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  column_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  detail TEXT,
+  checked INTEGER NOT NULL DEFAULT 0,
+  checked_at TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_project ON checklist_items(project_id, column_key);
 CREATE INDEX IF NOT EXISTS idx_timelines_project ON timelines(project_id, stage);
 CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
 CREATE INDEX IF NOT EXISTS idx_stage_versions_project ON stage_entry_versions(project_id, column_key);

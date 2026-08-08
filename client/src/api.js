@@ -25,6 +25,7 @@ export const api = {
   getProjects: () => request("/projects"),
   getProject: (id) => request(`/projects/${id}`),
   getDashboard: (id) => request(`/projects/${id}/dashboard`),
+  deleteProject: (id) => request(`/projects/${id}?confirm=${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   submitIntake: (formData) => request("/intake", { method: "POST", body: formData }),
 
@@ -82,6 +83,12 @@ export const api = {
 
   getTimeline: (id, stage) => request(`/projects/${id}/timeline/${stage}`),
   generateTimeline: (id, stage) => request(`/projects/${id}/timeline/${stage}`, { method: "POST" }),
+
+  getChecklist: (id, columnKey) => request(`/projects/${id}/checklist/${columnKey}`),
+  toggleChecklistItem: (id, itemId, checked) =>
+    request(`/projects/${id}/checklist/items/${itemId}`, { method: "PUT", body: JSON.stringify({ checked }) }),
+  regenerateChecklist: (id, columnKey) =>
+    request(`/projects/${id}/checklist/${columnKey}/regenerate`, { method: "POST" }),
 
   getTurnaround: () => request("/analytics/turnaround"),
   getContentPatterns: () => request("/analytics/content-patterns"),

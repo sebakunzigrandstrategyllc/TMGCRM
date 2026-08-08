@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import StageColumn from "../components/StageColumn.jsx";
 import MilestonesPanel from "../components/MilestonesPanel.jsx";
@@ -7,12 +7,15 @@ import PaymentSchedule from "../components/PaymentSchedule.jsx";
 import CalendarPanel from "../components/CalendarPanel.jsx";
 import AmendmentPanel from "../components/AmendmentPanel.jsx";
 import TimelineComparison from "../components/TimelineComparison.jsx";
+import DeleteProjectModal from "../components/DeleteProjectModal.jsx";
 
 export default function ProjectDashboard() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [milestonesTick, setMilestonesTick] = useState(0);
+  const [showDelete, setShowDelete] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -39,7 +42,17 @@ export default function ProjectDashboard() {
           </h1>
           <p className="text-xs text-gray-500">Created {new Date(project.created_at).toLocaleDateString()}</p>
         </div>
+        <button type="button" className="btn-secondary text-xs" onClick={() => setShowDelete(true)}>
+          Delete project
+        </button>
       </div>
+
+      <DeleteProjectModal
+        open={showDelete}
+        project={project}
+        onClose={() => setShowDelete(false)}
+        onDeleted={() => navigate("/")}
+      />
 
       <div className="mb-6 flex gap-3 overflow-x-auto pb-3">
         {columns.map((col) => (
