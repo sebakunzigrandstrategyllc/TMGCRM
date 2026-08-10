@@ -18,6 +18,22 @@ CREATE TABLE IF NOT EXISTS intake_forms (
   created_at TEXT NOT NULL
 );
 
+-- Any number of intake materials — pasted text, transcripts, or uploaded files (PDF, txt,
+-- audio/video, etc.) — each with whatever plain-text content could be extracted from it. This
+-- is what the See draft is actually generated from, not just a summary of field values.
+CREATE TABLE IF NOT EXISTS intake_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL, -- 'text' | 'transcript' | 'file'
+  label TEXT NOT NULL,
+  content TEXT, -- extracted/pasted plain text, if any
+  extraction_status TEXT NOT NULL DEFAULT 'ok', -- 'ok' | 'unsupported' | 'failed'
+  file_id INTEGER, -- REFERENCES files(id) when this document came from an uploaded file
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_intake_documents_project ON intake_documents(project_id);
+
 -- Current state of each dashboard column cell (AI draft + human-approved edit)
 CREATE TABLE IF NOT EXISTS stage_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -8,6 +8,7 @@ import TimelinePanel from "./TimelinePanel.jsx";
 import HumanEditField from "./HumanEditField.jsx";
 import TentativeMilestonesPreview from "./TentativeMilestonesPreview.jsx";
 import ChecklistModal from "./ChecklistModal.jsx";
+import IntakeDocumentsModal from "./IntakeDocumentsModal.jsx";
 import { api } from "../api.js";
 
 const COLUMN_INFO = {
@@ -39,10 +40,12 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
   const [history, setHistory] = useState(null);
   const [generatingTimeline, setGeneratingTimeline] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [showIntakeDocuments, setShowIntakeDocuments] = useState(false);
 
   const locked = !column.unlocked;
   const showTimeline = column.key === "see" || column.key === "make";
   const showMilestonesPreview = column.key === "make";
+  const showIntakeDocsButton = column.key === "see";
 
   const save = async () => {
     setSaving(true);
@@ -132,6 +135,11 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
           ) : (
             <>
               <div className="flex items-center justify-end gap-2">
+                {showIntakeDocsButton && (
+                  <button type="button" className="text-[10px] underline" onClick={() => setShowIntakeDocuments(true)}>
+                    Intake documents
+                  </button>
+                )}
                 <button type="button" className="text-[10px] underline" onClick={openDiff}>
                   Draft vs. edit
                 </button>
@@ -188,6 +196,15 @@ export default function StageColumn({ projectId, column, timeline, onChange }) {
           onSubmit={setApproval}
           checklist={column.checklist}
           onOpenChecklist={() => setShowChecklist(true)}
+        />
+      )}
+
+      {showIntakeDocsButton && (
+        <IntakeDocumentsModal
+          open={showIntakeDocuments}
+          onClose={() => setShowIntakeDocuments(false)}
+          projectId={projectId}
+          onChange={() => onChange?.()}
         />
       )}
 

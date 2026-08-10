@@ -90,6 +90,16 @@ export const api = {
   regenerateChecklist: (id, columnKey) =>
     request(`/projects/${id}/checklist/${columnKey}/regenerate`, { method: "POST" }),
 
+  getIntakeDocuments: (id) => request(`/projects/${id}/intake-documents`),
+  addIntakeTextDocument: (id, { label, content }) =>
+    request(`/projects/${id}/intake-documents`, { method: "POST", body: JSON.stringify({ label, content }) }),
+  addIntakeFileDocument: (id, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/projects/${id}/intake-documents`, { method: "POST", body: formData });
+  },
+  deleteIntakeDocument: (id, docId) => request(`/projects/${id}/intake-documents/${docId}`, { method: "DELETE" }),
+
   getTurnaround: () => request("/analytics/turnaround"),
   getContentPatterns: () => request("/analytics/content-patterns"),
   getOverview: () => request("/analytics/overview"),

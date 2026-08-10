@@ -8,21 +8,28 @@ import { generateIntakeSummary } from "../utils/ai.js";
 import { ensureProjectScaffold } from "../utils/stageEntries.js";
 import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
+import { addFileDocument, addPastedTextDocument, getIntakeDocumentsContent } from "../utils/intakeDocuments.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
 
 const router = Router();
 const upload = multer({ dest: path.join(process.cwd(), "tmp_uploads") });
 
-router.post(
-  "/",
-  upload.fields([
-    { name: "readAiTranscriptFile", maxCount: 1 },
-    { name: "emailThreadFile", maxCount: 1 },
-  ]),
-  (req, res) => {
+router.post("/", upload.array("documents", 20), async (req, res) => {
+  try {
     const { clientName, contactInfo, readAiTranscriptLink, notes } = req.body;
     if (!clientName || !clientName.trim()) {
       return res.status(400).json({ error: "clientName is required" });
+    }
+
+    // Pasted-text intake items travel as a JSON string field (labels + content), alongside
+    // any number of uploaded files (PDF, plain text, audio/video, etc.) in `documents`.
+    let textBlocks = [];
+    if (req.body.textBlocks) {
+      try {
+        textBlocks = JSON.parse(req.body.textBlocks);
+      } catch {
+        return res.status(400).json({ error: "textBlocks must be valid JSON" });
+      }
     }
 
     let projectMeta;
@@ -48,38 +55,55 @@ router.post(
        VALUES (?, ?, ?, ?)`
     ).run(projectId, readAiTranscriptLink || null, notes || "", now);
 
-    // Handle uploaded intake files: save into project's _uploads and duplicate into type folder.
+    // Save each uploaded file (organized into its type folder as usual) and, where the format
+    // is supported (PDF, plain text), extract its actual text content as an intake document.
     const uploadedFiles = [];
-    for (const field of ["readAiTranscriptFile", "emailThreadFile"]) {
-      const fileArr = req.files?.[field];
-      if (!fileArr?.length) continue;
-      const file = fileArr[0];
+    for (const file of req.files || []) {
       const fileType = MIME_TO_FILE_TYPE(file.mimetype, file.originalname);
       const primaryDir = path.join(projectDir(projectId), "_uploads");
       fs.mkdirSync(primaryDir, { recursive: true });
-      const primaryPath = path.join(primaryDir, file.originalname);
-      fs.copyFileSync(file.path, primaryPath);
+      fs.copyFileSync(file.path, path.join(primaryDir, file.originalname));
       const dupPath = duplicateIntoTypeFolder(projectId, file.path, fileType, file.originalname);
-      fs.unlinkSync(file.path);
 
-      const info = db
+      const fileInfo = db
         .prepare(
           `INSERT INTO files (project_id, column_key, file_type, original_name, stored_path, mime_type, size, uploaded_at)
            VALUES (?, 'see', ?, ?, ?, ?, ?, ?)`
         )
         .run(projectId, fileType, file.originalname, dupPath, file.mimetype, file.size, now);
-      uploadedFiles.push(info.lastInsertRowid);
+      uploadedFiles.push(fileInfo.lastInsertRowid);
+
+      await addFileDocument(projectId, {
+        kind: "file",
+        label: file.originalname,
+        filePath: file.path,
+        mimeType: file.mimetype,
+        originalName: file.originalname,
+        fileId: fileInfo.lastInsertRowid,
+      });
+      fs.unlinkSync(file.path);
     }
 
-    // Seed See's first draft from intake materials, then cascade: this fills in a tentative
-    // AI draft for every column from Understand through Final Notes, plus the See journey
-    // timeline, a tentative Make execution timeline, and tentative (AI-suggested) milestones —
-    // the full See -> Sustain outline exists from the moment the project is created.
+    for (const block of textBlocks) {
+      if (!block?.content?.trim()) continue;
+      addPastedTextDocument(projectId, {
+        kind: "text",
+        label: block.label?.trim() || "Pasted note",
+        content: block.content.trim(),
+      });
+    }
+
+    // Seed See's first draft from the intake fields and every intake document's actual
+    // extracted content, then cascade: this fills in a tentative AI draft for every column
+    // from Understand through Final Notes, plus the See journey timeline, a tentative Make
+    // execution timeline, and tentative (AI-suggested) milestones — the full See -> Sustain
+    // outline exists, informed by real source material, from the moment the project is created.
     const { seeDraft } = generateIntakeSummary({
       clientName,
       contactInfo,
       readAiTranscriptLink,
       notes,
+      documents: getIntakeDocumentsContent(projectId),
     });
 
     const contactDetails = [`Client: ${clientName.trim()}`, contactInfo ? `Contact: ${contactInfo}` : null]
@@ -110,7 +134,10 @@ router.post(
     regenerateProjectPlan(project);
 
     res.status(201).json({ project, uploadedFileIds: uploadedFiles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Failed to process intake" });
   }
-);
+});
 
 export default router;

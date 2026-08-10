@@ -1,8 +1,9 @@
 import { db, logActivity } from "../db/db.js";
-import { generateUnderstandBreakdown, generateStageDraft } from "./ai.js";
+import { generateUnderstandBreakdown, generateStageDraft, generateIntakeSummary } from "./ai.js";
 import { ensureProjectScaffold, isProposalApproved } from "./stageEntries.js";
 import { generateAndStoreSeeTimeline, generateAndStoreMakeTimeline, getLatestTimeline } from "./timelineEngine.js";
 import { ensureChecklist } from "./checklistEngine.js";
+import { getIntakeDocumentsContent } from "./intakeDocuments.js";
 import { COLUMN_KEYS } from "../constants.js";
 
 function getStage(projectId, columnKey) {
@@ -93,12 +94,32 @@ function regenerateTentativeMilestones(project, makeTimeline) {
   if (changed) logActivity(project.id, "milestones_suggested", "make", { count: segments.length });
 }
 
+// See's own ai_draft is regenerated from its actual canonical source — the intake fields plus
+// every intake document's extracted content — not derived from an upstream column like every
+// other stage. Re-running this whenever a document is added/removed keeps it current; it's a
+// no-op (diff-guarded) whenever nothing about the source material has changed.
+function regenerateSeeDraft(project) {
+  const intakeForm = db
+    .prepare(`SELECT * FROM intake_forms WHERE project_id = ? ORDER BY id DESC LIMIT 1`)
+    .get(project.id);
+  const { seeDraft } = generateIntakeSummary({
+    clientName: project.client_name,
+    contactInfo: project.contact_info,
+    readAiTranscriptLink: intakeForm?.read_ai_transcript_link || null,
+    notes: project.notes,
+    documents: getIntakeDocumentsContent(project.id),
+  });
+  setAiDraftIfChanged(project.id, "see", seeDraft);
+}
+
 // The core cascade: re-derives the tentative outline for every stage from See through Sustain,
 // left to right, each one framed from whatever the stage before it currently holds (human edit
 // if the human has made one, otherwise the AI draft). Call this after any human edit, approval
 // change, or at intake — it's idempotent and cheap, and only ever writes what actually changed.
 export function regenerateProjectPlan(project) {
   ensureProjectScaffold(project.id);
+
+  regenerateSeeDraft(project);
 
   const see = getStage(project.id, "see");
   const understandDraft = generateUnderstandBreakdown({

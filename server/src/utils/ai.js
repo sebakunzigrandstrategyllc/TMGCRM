@@ -2,16 +2,37 @@
 // callers only depend on the returned shapes, not how they're produced.
 import { wordDiff } from "./diff.js";
 
-export function generateIntakeSummary({ clientName, contactInfo, readAiTranscriptLink, notes }) {
+const EXCERPT_LENGTH = 500;
+
+function excerpt(text) {
+  const trimmed = (text || "").trim();
+  if (trimmed.length <= EXCERPT_LENGTH) return trimmed;
+  return `${trimmed.slice(0, EXCERPT_LENGTH).trim()}…`;
+}
+
+function wordCount(text) {
+  return (text || "").trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+// `documents` is whatever text was actually extracted from intake materials — pasted text,
+// transcripts, or parsed PDFs/plain-text files (see textExtraction.js). This is real content,
+// not just a reference to the fact that a file exists, so the See draft reflects what's
+// actually in them rather than only the form's text fields.
+export function generateIntakeSummary({ clientName, contactInfo, readAiTranscriptLink, notes, documents = [] }) {
+  const totalWords = documents.reduce((sum, d) => sum + wordCount(d.content), 0);
+
   const seeDraft = [
     `[AI DRAFT — See]`,
     `Client: ${clientName || "Unknown"}`,
     `Contact: ${contactInfo || "Not provided"}`,
     readAiTranscriptLink ? `Read AI transcript reference: ${readAiTranscriptLink}` : null,
     ``,
-    `Initial observations captured from intake materials. This is an auto-generated first draft`,
-    `summarizing what was seen during intake (calls, transcripts, email threads, and notes).`,
+    documents.length > 0
+      ? `Analyzed ${documents.length} intake document${documents.length === 1 ? "" : "s"} (~${totalWords} words total) alongside the fields above. This is an auto-generated first draft — refine it once you've read the source material yourself.`
+      : `No intake documents with extractable text were attached — this draft is based only on the fields above. This is an auto-generated first draft.`,
     notes ? `\nIntake notes:\n${notes}` : null,
+    documents.length > 0 ? `\nSOURCE MATERIAL EXCERPTS` : null,
+    ...documents.map((d) => `\n— ${d.label} (${d.kind}) —\n${excerpt(d.content)}`),
   ]
     .filter(Boolean)
     .join("\n");

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { db, logActivity } from "../db/db.js";
 import { COLUMN_KEYS } from "../constants.js";
 import { isColumnUnlocked, ensureProjectScaffold } from "../utils/stageEntries.js";
-import { generateIntakeSummary } from "../utils/ai.js";
 import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { wordDiff } from "../utils/diff.js";
 
@@ -68,9 +67,10 @@ router.put("/:columnKey", (req, res) => {
   res.json(updated);
 });
 
-// Manually regenerate a column's AI draft. See is the only column with no upstream AI
-// dependency (it's rebuilt from the original intake fields); every other column's tentative
-// draft is derived from what's upstream of it, so regenerating is just re-running the cascade.
+// Manually regenerate a column's AI draft. See's draft is rebuilt from the original intake
+// fields plus every current intake document's extracted content; every other column's
+// tentative draft is derived from what's upstream of it — either way, regenerating is just
+// re-running the cascade, which recomputes deterministically from current source material.
 router.post("/:columnKey/generate", (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
@@ -81,24 +81,6 @@ router.post("/:columnKey/generate", (req, res) => {
 
   if (!isColumnUnlocked(project.id, columnKey)) {
     return res.status(423).json({ error: "This column is locked until the prior column is approved." });
-  }
-
-  if (columnKey === "see") {
-    const draft = generateIntakeSummary({
-      clientName: project.client_name,
-      contactInfo: project.contact_info,
-      notes: project.notes,
-    }).seeDraft;
-
-    const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = 'see'`
-    ).run(draft, now, project.id);
-    db.prepare(
-      `INSERT INTO stage_entry_versions (project_id, column_key, version_type, content, created_at)
-       VALUES (?, 'see', 'ai_draft', ?, ?)`
-    ).run(project.id, draft, now);
-    logActivity(project.id, "ai_draft_generated", "see", { manual: true });
   }
 
   regenerateProjectPlan(project);

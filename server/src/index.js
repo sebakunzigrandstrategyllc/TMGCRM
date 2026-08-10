@@ -14,6 +14,7 @@ import amendmentsRouter from "./routes/amendments.js";
 import analyticsRouter from "./routes/analytics.js";
 import timelineRouter from "./routes/timeline.js";
 import checklistRouter from "./routes/checklist.js";
+import intakeDocumentsRouter from "./routes/intakeDocuments.js";
 import { COLUMNS } from "./constants.js";
 
 const app = express();
@@ -33,6 +34,7 @@ app.use("/api/projects/:id/calendar", calendarRouter);
 app.use("/api/projects/:id/amendments", amendmentsRouter);
 app.use("/api/projects/:id/timeline", timelineRouter);
 app.use("/api/projects/:id/checklist", checklistRouter);
+app.use("/api/projects/:id/intake-documents", intakeDocumentsRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api", filesRouter);
 
