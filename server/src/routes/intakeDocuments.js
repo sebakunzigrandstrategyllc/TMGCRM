@@ -7,6 +7,7 @@ import { isColumnUnlocked } from "../utils/stageEntries.js";
 import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
 import { addFileDocument, addPastedTextDocument, deleteIntakeDocument, listIntakeDocuments } from "../utils/intakeDocuments.js";
+import { isSupportedIntakeFile, SUPPORTED_INTAKE_LABEL } from "../utils/textExtraction.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
 
 const router = Router({ mergeParams: true });
@@ -38,10 +39,10 @@ router.get("/", (req, res) => {
   res.json(listIntakeDocuments(project.id));
 });
 
-// Add more source material after intake — text pasted directly, or an uploaded file (PDF and
-// plain text get their content extracted; other formats are stored as attachments only).
+// Add more source material after intake — text pasted directly, or an uploaded text-based file
+// (PDF or plain text; audio/video/images are rejected, this is a text-only intake channel).
 // Either way, this re-runs the plan cascade so See's draft (and everything downstream) picks
-// up the new material once it's saved as the human edit or regenerated.
+// up the new material immediately.
 router.post("/", upload.single("file"), async (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
@@ -49,6 +50,13 @@ router.post("/", upload.single("file"), async (req, res) => {
 
   try {
     if (req.file) {
+      if (!isSupportedIntakeFile(req.file.mimetype, req.file.originalname)) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio, video, and images aren't analyzed here.`,
+        });
+      }
+
       const fileType = MIME_TO_FILE_TYPE(req.file.mimetype, req.file.originalname);
       const primaryDir = path.join(projectDir(project.id), "_uploads", "see");
       fs.mkdirSync(primaryDir, { recursive: true });

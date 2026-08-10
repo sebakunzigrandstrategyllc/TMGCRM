@@ -9,6 +9,7 @@ import { ensureProjectScaffold } from "../utils/stageEntries.js";
 import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
 import { addFileDocument, addPastedTextDocument, getIntakeDocumentsContent } from "../utils/intakeDocuments.js";
+import { isSupportedIntakeFile, SUPPORTED_INTAKE_LABEL } from "../utils/textExtraction.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
 
 const router = Router();
@@ -22,7 +23,9 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
     }
 
     // Pasted-text intake items travel as a JSON string field (labels + content), alongside
-    // any number of uploaded files (PDF, plain text, audio/video, etc.) in `documents`.
+    // any number of uploaded files in `documents`. Intake is text-only: audio, video, and
+    // image files are rejected here rather than accepted and silently ignored — everything
+    // that gets in must actually be readable by generateIntakeSummary.
     let textBlocks = [];
     if (req.body.textBlocks) {
       try {
@@ -30,6 +33,14 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
       } catch {
         return res.status(400).json({ error: "textBlocks must be valid JSON" });
       }
+    }
+
+    const rejectedFiles = (req.files || []).filter((f) => !isSupportedIntakeFile(f.mimetype, f.originalname));
+    if (rejectedFiles.length > 0) {
+      for (const f of req.files) fs.unlinkSync(f.path);
+      return res.status(400).json({
+        error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio, video, and images aren't analyzed here. Rejected: ${rejectedFiles.map((f) => f.originalname).join(", ")}`,
+      });
     }
 
     let projectMeta;
