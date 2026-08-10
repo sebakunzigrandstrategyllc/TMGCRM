@@ -40,9 +40,9 @@ router.get("/", (req, res) => {
 });
 
 // Add more source material after intake — text pasted directly, or an uploaded text-based file
-// (PDF or plain text; audio/video/images are rejected, this is a text-only intake channel).
-// Either way, this re-runs the plan cascade so See's draft (and everything downstream) picks
-// up the new material immediately.
+// (PDF, plain text, or an image read via OCR; audio/video are rejected — this is a text-only
+// intake channel). Either way, this re-runs the plan cascade so See's draft (and everything
+// downstream) picks up the new material immediately.
 router.post("/", upload.single("file"), async (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
@@ -53,7 +53,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       if (!isSupportedIntakeFile(req.file.mimetype, req.file.originalname)) {
         fs.unlinkSync(req.file.path);
         return res.status(400).json({
-          error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio, video, and images aren't analyzed here.`,
+          error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio and video aren't analyzed here.`,
         });
       }
 

@@ -23,9 +23,10 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
     }
 
     // Pasted-text intake items travel as a JSON string field (labels + content), alongside
-    // any number of uploaded files in `documents`. Intake is text-only: audio, video, and
-    // image files are rejected here rather than accepted and silently ignored — everything
-    // that gets in must actually be readable by generateIntakeSummary.
+    // any number of uploaded files in `documents`. Intake is text-only: PDFs, plain text, and
+    // images (OCR'd) are accepted; audio/video are rejected here rather than accepted and
+    // silently ignored — everything that gets in must actually be readable by
+    // generateIntakeSummary.
     let textBlocks = [];
     if (req.body.textBlocks) {
       try {
@@ -39,7 +40,7 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
     if (rejectedFiles.length > 0) {
       for (const f of req.files) fs.unlinkSync(f.path);
       return res.status(400).json({
-        error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio, video, and images aren't analyzed here. Rejected: ${rejectedFiles.map((f) => f.originalname).join(", ")}`,
+        error: `Intake only accepts text-based documents (${SUPPORTED_INTAKE_LABEL}) — audio and video aren't analyzed here. Rejected: ${rejectedFiles.map((f) => f.originalname).join(", ")}`,
       });
     }
 

@@ -68,8 +68,9 @@ export default function IntakeDocumentsModal({ open, onClose, projectId, onChang
     <Modal open={open} onClose={onClose} title="Intake Documents" wide>
       <p className="mb-3 text-xs text-gray-500">
         Everything here feeds See's AI draft, and cascades downstream from there. Text only — pasted notes,
-        transcripts, or PDF/plain-text files. Audio, video, and image files aren't accepted (no transcription or
-        OCR) — attach those to a column directly instead if you just need them stored.
+        transcripts, PDFs, plain-text files, or screenshots/photos of documents (PNG, JPEG — read via OCR). Audio
+        and video files aren't accepted (no transcription) — attach those to a column directly instead if you just
+        need them stored.
       </p>
 
       <div className="mb-4 border border-black/20 p-2">
@@ -109,7 +110,7 @@ export default function IntakeDocumentsModal({ open, onClose, projectId, onChang
             <input
               className="input text-sm"
               type="file"
-              accept=".pdf,.txt,.md,.eml,.csv,.vtt,.srt"
+              accept=".pdf,.png,.jpg,.jpeg,.txt,.md,.eml,.csv,.vtt,.srt"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
           )}

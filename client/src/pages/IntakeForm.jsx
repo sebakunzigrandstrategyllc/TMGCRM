@@ -105,8 +105,9 @@ export default function IntakeForm() {
             </div>
           </div>
           <p className="mb-2 text-[11px] text-gray-500">
-            Text only — pasted notes, transcripts, or PDF/plain-text files. Everything here is actually read and
-            analyzed. Audio, video, and image files aren't accepted for intake (no transcription or OCR).
+            Text only — pasted notes, transcripts, PDFs, plain-text files, or screenshots/photos of documents (PNG,
+            JPEG — read via OCR). Everything here is actually read and analyzed. Audio and video files aren't
+            accepted for intake (no transcription).
           </p>
 
           {documents.length === 0 && (
@@ -143,7 +144,7 @@ export default function IntakeForm() {
                   <input
                     className="input text-sm"
                     type="file"
-                    accept=".pdf,.txt,.md,.eml,.csv,.vtt,.srt"
+                    accept=".pdf,.png,.jpg,.jpeg,.txt,.md,.eml,.csv,.vtt,.srt"
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
                       updateRow(doc.id, { file, label: doc.label || file?.name || "" });

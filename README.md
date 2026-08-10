@@ -17,6 +17,19 @@ server/   Express API + SQLite database + file storage
 client/   React SPA
 ```
 
+## System dependencies
+
+Intake document text extraction needs one native binary beyond `npm install`:
+
+- **`tesseract` (OCR)** — required to read text out of PNG/JPEG intake uploads. Install via
+  the OS package manager, e.g. on Debian/Ubuntu:
+  ```bash
+  apt-get install -y tesseract-ocr tesseract-ocr-eng
+  ```
+  Without it, PNG/JPEG intake uploads still save (as attachments) but extraction is marked
+  `failed` and contributes nothing to the AI draft — check `server/src/utils/textExtraction.js`
+  if OCR silently stops working. PDF and plain-text extraction have no extra system dependency.
+
 ## Running locally
 
 ```bash
