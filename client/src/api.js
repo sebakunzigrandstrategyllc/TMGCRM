@@ -26,6 +26,8 @@ export const api = {
   getProject: (id) => request(`/projects/${id}`),
   getDashboard: (id) => request(`/projects/${id}/dashboard`),
   deleteProject: (id) => request(`/projects/${id}?confirm=${encodeURIComponent(id)}`, { method: "DELETE" }),
+  exportProjectsCsvUrl: () => `${BASE}/projects/export/csv`,
+  exportProjectsXlsxUrl: () => `${BASE}/projects/export/xlsx`,
 
   submitIntake: (formData) => request("/intake", { method: "POST", body: formData }),
   submitBulkIntake: (file) => {

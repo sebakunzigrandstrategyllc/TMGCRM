@@ -19,9 +19,17 @@ export default function ProjectsList() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-lg font-bold uppercase tracking-wider">Projects ({projects.length}/50)</h1>
-        <Link to="/intake" className="btn-primary text-xs">
-          + New Intake
-        </Link>
+        <div className="flex items-center gap-3">
+          <a href={api.exportProjectsCsvUrl()} className="text-xs underline" download>
+            Download CSV
+          </a>
+          <a href={api.exportProjectsXlsxUrl()} className="text-xs underline" download>
+            Download Spreadsheet
+          </a>
+          <Link to="/intake" className="btn-primary text-xs">
+            + New Intake
+          </Link>
+        </div>
       </div>
 
       {loading ? (

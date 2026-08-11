@@ -1,10 +1,12 @@
 import { Router } from "express";
+import ExcelJS from "exceljs";
 import { db } from "../db/db.js";
 import { COLUMNS } from "../constants.js";
 import { ensureProjectScaffold, isColumnUnlocked, isProposalApproved } from "../utils/stageEntries.js";
 import { getLatestTimeline } from "../utils/timelineEngine.js";
 import { getChecklistProgress } from "../utils/checklistEngine.js";
 import { deleteProjectCompletely } from "../utils/deleteProject.js";
+import { buildProjectExportRows, exportRowsToCsv, EXPORT_HEADERS } from "../utils/exportProjects.js";
 
 const router = Router();
 
@@ -13,6 +15,32 @@ router.get("/", (req, res) => {
     .prepare(`SELECT * FROM projects ORDER BY seq_number ASC`)
     .all();
   res.json(projects);
+});
+
+// Full client/project roster as a downloadable file — every project, one row each, with
+// core client fields and a per-stage approval status. Mounted ahead of "/:id" so "export"
+// is never mistaken for a project id.
+router.get("/export/csv", (req, res) => {
+  const rows = buildProjectExportRows();
+  const filename = `summs-projects-${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(exportRowsToCsv(rows));
+});
+
+router.get("/export/xlsx", async (req, res) => {
+  const rows = buildProjectExportRows();
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Projects");
+  sheet.columns = EXPORT_HEADERS.map((h) => ({ header: h.label, key: h.key, width: 22 }));
+  sheet.getRow(1).font = { bold: true };
+  rows.forEach((row) => sheet.addRow(row));
+
+  const filename = `summs-projects-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  await workbook.xlsx.write(res);
+  res.end();
 });
 
 router.get("/:id", (req, res) => {
