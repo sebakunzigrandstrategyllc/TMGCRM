@@ -25,6 +25,9 @@ function ensureColumn(table, column, definition) {
 }
 ensureColumn("milestones", "source", `TEXT NOT NULL DEFAULT 'human'`);
 ensureColumn("milestones", "source_key", `TEXT`);
+ensureColumn("projects", "email", `TEXT`);
+ensureColumn("projects", "phone", `TEXT`);
+ensureColumn("projects", "company", `TEXT`);
 
 export function logActivity(projectId, action, columnKey = null, details = null) {
   db.prepare(

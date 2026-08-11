@@ -3,7 +3,10 @@ CREATE TABLE IF NOT EXISTS projects (
   seq_number INTEGER UNIQUE NOT NULL,
   random_id TEXT NOT NULL,
   client_name TEXT NOT NULL,
-  contact_info TEXT,
+  contact_info TEXT, -- auto-composed display string: "email · phone · company" — kept for every existing reader (AI drafts, dashboard, list view)
+  email TEXT,
+  phone TEXT,
+  company TEXT,
   notes TEXT,
   current_stage TEXT NOT NULL DEFAULT 'see',
   created_at TEXT NOT NULL,

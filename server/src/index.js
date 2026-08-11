@@ -15,6 +15,7 @@ import analyticsRouter from "./routes/analytics.js";
 import timelineRouter from "./routes/timeline.js";
 import checklistRouter from "./routes/checklist.js";
 import intakeDocumentsRouter from "./routes/intakeDocuments.js";
+import intakeBulkRouter from "./routes/intakeBulk.js";
 import { COLUMNS } from "./constants.js";
 
 const app = express();
@@ -26,6 +27,7 @@ app.get("/api/columns", (req, res) => res.json(COLUMNS));
 
 app.use("/api/projects", projectsRouter);
 app.use("/api/intake", intakeRouter);
+app.use("/api/intake/bulk", intakeBulkRouter);
 app.use("/api/projects/:id/columns", columnsRouter);
 app.use("/api/projects/:id/approvals", approvalsRouter);
 app.use("/api/projects/:id/milestones", milestonesRouter);

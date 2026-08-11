@@ -28,6 +28,11 @@ export const api = {
   deleteProject: (id) => request(`/projects/${id}?confirm=${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   submitIntake: (formData) => request("/intake", { method: "POST", body: formData }),
+  submitBulkIntake: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request("/intake/bulk", { method: "POST", body: formData });
+  },
 
   saveColumnEdit: (id, columnKey, humanEdit) =>
     request(`/projects/${id}/columns/${columnKey}`, { method: "PUT", body: JSON.stringify({ humanEdit }) }),

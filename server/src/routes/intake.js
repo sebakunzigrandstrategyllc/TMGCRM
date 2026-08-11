@@ -2,14 +2,12 @@ import { Router } from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
-import { db, logActivity } from "../db/db.js";
-import { generateProjectId } from "../utils/projectId.js";
-import { generateIntakeSummary } from "../utils/ai.js";
-import { ensureProjectScaffold } from "../utils/stageEntries.js";
-import { regenerateProjectPlan } from "../utils/planEngine.js";
+import { db } from "../db/db.js";
+import { createProjectFromIntake, IntakeValidationError } from "../utils/projectCreation.js";
 import { ensureProjectFolders, duplicateIntoTypeFolder, projectDir } from "../utils/storage.js";
-import { addFileDocument, addPastedTextDocument, getIntakeDocumentsContent } from "../utils/intakeDocuments.js";
+import { addFileDocument, addPastedTextDocument } from "../utils/intakeDocuments.js";
 import { isSupportedIntakeFile, SUPPORTED_INTAKE_LABEL } from "../utils/textExtraction.js";
+import { regenerateProjectPlan } from "../utils/planEngine.js";
 import { MIME_TO_FILE_TYPE } from "../constants.js";
 
 const router = Router();
@@ -17,16 +15,13 @@ const upload = multer({ dest: path.join(process.cwd(), "tmp_uploads") });
 
 router.post("/", upload.array("documents", 20), async (req, res) => {
   try {
-    const { clientName, contactInfo, readAiTranscriptLink, notes } = req.body;
-    if (!clientName || !clientName.trim()) {
-      return res.status(400).json({ error: "clientName is required" });
-    }
+    const { clientName, email, phone, company, readAiTranscriptLink, notes, proposalAgreed } = req.body;
 
     // Pasted-text intake items travel as a JSON string field (labels + content), alongside
     // any number of uploaded files in `documents`. Intake is text-only: PDFs, plain text, and
     // images (OCR'd) are accepted; audio/video are rejected here rather than accepted and
-    // silently ignored — everything that gets in must actually be readable by
-    // generateIntakeSummary.
+    // silently ignored — everything that gets in must actually be readable by the AI draft
+    // generator.
     let textBlocks = [];
     if (req.body.textBlocks) {
       try {
@@ -44,48 +39,42 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
       });
     }
 
-    let projectMeta;
+    let project;
     try {
-      projectMeta = generateProjectId();
+      project = createProjectFromIntake({
+        clientName,
+        email,
+        phone,
+        company,
+        notes,
+        readAiTranscriptLink,
+        proposalAgreed: proposalAgreed === "true" || proposalAgreed === true,
+      });
     } catch (err) {
-      return res.status(400).json({ error: err.message });
+      if (err instanceof IntakeValidationError) return res.status(400).json({ error: err.message });
+      throw err;
     }
 
-    const now = new Date().toISOString();
-    const projectId = projectMeta.id;
-
-    db.prepare(
-      `INSERT INTO projects (id, seq_number, random_id, client_name, contact_info, notes, current_stage, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'see', ?, ?)`
-    ).run(projectId, projectMeta.seqNumber, projectMeta.randomId, clientName.trim(), contactInfo || "", notes || "", now, now);
-
-    ensureProjectFolders(projectId);
-    ensureProjectScaffold(projectId);
-
-    db.prepare(
-      `INSERT INTO intake_forms (project_id, read_ai_transcript_link, notes, created_at)
-       VALUES (?, ?, ?, ?)`
-    ).run(projectId, readAiTranscriptLink || null, notes || "", now);
-
     // Save each uploaded file (organized into its type folder as usual) and, where the format
-    // is supported (PDF, plain text), extract its actual text content as an intake document.
+    // is supported, extract its actual text content as an intake document — then cascade so
+    // See's draft (and everything downstream) picks up what was just added.
     const uploadedFiles = [];
     for (const file of req.files || []) {
       const fileType = MIME_TO_FILE_TYPE(file.mimetype, file.originalname);
-      const primaryDir = path.join(projectDir(projectId), "_uploads");
+      const primaryDir = path.join(projectDir(project.id), "_uploads");
       fs.mkdirSync(primaryDir, { recursive: true });
       fs.copyFileSync(file.path, path.join(primaryDir, file.originalname));
-      const dupPath = duplicateIntoTypeFolder(projectId, file.path, fileType, file.originalname);
+      const dupPath = duplicateIntoTypeFolder(project.id, file.path, fileType, file.originalname);
 
       const fileInfo = db
         .prepare(
           `INSERT INTO files (project_id, column_key, file_type, original_name, stored_path, mime_type, size, uploaded_at)
            VALUES (?, 'see', ?, ?, ?, ?, ?, ?)`
         )
-        .run(projectId, fileType, file.originalname, dupPath, file.mimetype, file.size, now);
+        .run(project.id, fileType, file.originalname, dupPath, file.mimetype, file.size, new Date().toISOString());
       uploadedFiles.push(fileInfo.lastInsertRowid);
 
-      await addFileDocument(projectId, {
+      await addFileDocument(project.id, {
         kind: "file",
         label: file.originalname,
         filePath: file.path,
@@ -98,52 +87,16 @@ router.post("/", upload.array("documents", 20), async (req, res) => {
 
     for (const block of textBlocks) {
       if (!block?.content?.trim()) continue;
-      addPastedTextDocument(projectId, {
+      addPastedTextDocument(project.id, {
         kind: "text",
         label: block.label?.trim() || "Pasted note",
         content: block.content.trim(),
       });
     }
 
-    // Seed See's first draft from the intake fields and every intake document's actual
-    // extracted content, then cascade: this fills in a tentative AI draft for every column
-    // from Understand through Final Notes, plus the See journey timeline, a tentative Make
-    // execution timeline, and tentative (AI-suggested) milestones — the full See -> Sustain
-    // outline exists, informed by real source material, from the moment the project is created.
-    const { seeDraft } = generateIntakeSummary({
-      clientName,
-      contactInfo,
-      readAiTranscriptLink,
-      notes,
-      documents: getIntakeDocumentsContent(projectId),
-    });
-
-    const contactDetails = [`Client: ${clientName.trim()}`, contactInfo ? `Contact: ${contactInfo}` : null]
-      .filter(Boolean)
-      .join("\n");
-
-    db.prepare(
-      `UPDATE stage_entries SET ai_draft = ?, human_edit = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`
-    ).run(contactDetails, contactDetails, now, projectId, "contact_details");
-    db.prepare(`UPDATE stage_entries SET ai_draft = ?, updated_at = ? WHERE project_id = ? AND column_key = ?`).run(
-      seeDraft,
-      now,
-      projectId,
-      "see"
-    );
-
-    const insertVersion = db.prepare(
-      `INSERT INTO stage_entry_versions (project_id, column_key, version_type, content, created_at)
-       VALUES (?, ?, 'ai_draft', ?, ?)`
-    );
-    insertVersion.run(projectId, "contact_details", contactDetails, now);
-    insertVersion.run(projectId, "see", seeDraft, now);
-
-    logActivity(projectId, "project_created", null, { clientName });
-    logActivity(projectId, "ai_draft_generated", "see", { source: "intake" });
-
-    const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId);
-    regenerateProjectPlan(project);
+    if (req.files?.length || textBlocks.length) {
+      regenerateProjectPlan(project);
+    }
 
     res.status(201).json({ project, uploadedFileIds: uploadedFiles });
   } catch (err) {
